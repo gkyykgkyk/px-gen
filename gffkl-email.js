@@ -10,6 +10,28 @@ const HEADERS = {
 };
 
 /**
+ * دالة اتصال آمنة تعيد المحاولة في حال حدوث أي تقلبات في الشبكة
+ */
+async function safeFetch(url, options = {}, retries = 4, delayMs = 2000) {
+  let lastError;
+  for (let attempt = 1; attempt <= retries; attempt++) {
+    try {
+      const response = await fetch(url, options);
+      return response;
+    } catch (err) {
+      lastError = err;
+      console.warn(
+        `\n⚠️ اتصال الشبكة تعثر (محاولة ${attempt}/${retries}): ${err.message}. إعادة المحاولة بعد قليل...`
+      );
+      if (attempt < retries) {
+        await new Promise((r) => setTimeout(r, delayMs * attempt));
+      }
+    }
+  }
+  throw lastError;
+}
+
+/**
  * إنشاء إيميل عشوائي جديد على gffkl.com
  * @returns {Promise<string>} الإيميل اللي اتعمل
  */
@@ -21,11 +43,16 @@ async function createRandomEmail() {
     Date.now().toString(36);
   const email = `${randomName}@gffkl.com`;
 
-  const response = await fetch(`${config.GFFKL_BASE_URL}/email/create`, {
-    method: "POST",
-    headers: HEADERS,
-    body: JSON.stringify({ email }),
-  });
+  const response = await safeFetch(
+    `${config.GFFKL_BASE_URL}/email/create`,
+    {
+      method: "POST",
+      headers: HEADERS,
+      body: JSON.stringify({ email }),
+    },
+    3,
+    1500
+  );
 
   const data = await response.json();
   if (!data.success) {
@@ -46,16 +73,22 @@ async function waitForEmail(email) {
   console.log(`⏳ في انتظار وصول رسالة لـ ${email}...`);
 
   while (Date.now() - startTime < config.WAIT_FOR_EMAIL_TIMEOUT) {
-    const response = await fetch(
-      `${config.GFFKL_BASE_URL}/email/${email}/inbox`,
-      { headers: HEADERS }
-    );
-    const data = await response.json();
+    try {
+      const response = await safeFetch(
+        `${config.GFFKL_BASE_URL}/email/${encodeURIComponent(email)}/inbox`,
+        { headers: HEADERS },
+        2,
+        1000
+      );
+      const data = await response.json();
 
-    if (data.success && data.count > 0) {
-      const msg = data.messages[0];
-      console.log(`📩 وصلت رسالة من: ${msg.from} | الموضوع: ${msg.subject}`);
-      return msg;
+      if (data.success && data.count > 0) {
+        const msg = data.messages[0];
+        console.log(`📩 وصلت رسالة من: ${msg.from} | الموضوع: ${msg.subject}`);
+        return msg;
+      }
+    } catch (err) {
+      // تقلب مؤقت في الشبكة، نستمر في المحاولة
     }
 
     // استنى شوية وحاول تاني
@@ -73,10 +106,16 @@ async function waitForEmail(email) {
  * @returns {Promise<string>} كود التحقق (6 أرقام)
  */
 async function getVerificationCode(email, msgId) {
-  const response = await fetch(
-    `${config.GFFKL_BASE_URL}/email/${email}/inbox/${msgId}`,
-    { headers: HEADERS }
+  const encodedEmail = encodeURIComponent(email);
+  const encodedMsgId = encodeURIComponent(msgId);
+
+  const response = await safeFetch(
+    `${config.GFFKL_BASE_URL}/email/${encodedEmail}/inbox/${encodedMsgId}`,
+    { headers: HEADERS },
+    4,
+    2000
   );
+
   const data = await response.json();
 
   if (!data.success) {
@@ -108,10 +147,15 @@ async function getVerificationCode(email, msgId) {
  */
 async function deleteEmail(email) {
   try {
-    await fetch(`${config.GFFKL_BASE_URL}/email/${email}`, {
-      method: "DELETE",
-      headers: HEADERS,
-    });
+    await safeFetch(
+      `${config.GFFKL_BASE_URL}/email/${encodeURIComponent(email)}`,
+      {
+        method: "DELETE",
+        headers: HEADERS,
+      },
+      2,
+      1000
+    );
     console.log(`🗑️ تم حذف الإيميل: ${email}`);
   } catch (err) {
     console.warn(`⚠️ فشل حذف الإيميل: ${err.message}`);

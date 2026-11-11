@@ -56,7 +56,10 @@ async function main() {
       saveAccount(account);
       successCount++;
     } catch (error) {
-      console.error(`❌ فشل إنشاء الحساب رقم ${i}: ${error.message}`);
+      console.error(
+        `❌ فشل إنشاء الحساب رقم ${i}: ${error.message}`,
+        error.cause ? `\n🔍 السبب الأساسي: ${error.cause.message || JSON.stringify(error.cause)}` : ""
+      );
       failCount++;
     }
 
