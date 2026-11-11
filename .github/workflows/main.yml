@@ -20,7 +20,6 @@ jobs:
       - name: ⚙️ إعداد بيئة Node.js
         uses: actions/setup-node@v4
         with:
-        
           node-version: 20
           cache: "npm"
 
@@ -28,9 +27,9 @@ jobs:
         run: npm install
         timeout-minutes: 3
 
-      - name: 🌐 تثبيت متصفح Playwright مع مكتبات النظام
-        run: npx playwright install --with-deps chromium
-        timeout-minutes: 5 # لو حصلت مشكلة في سيرفرات أوبنتو زي الصورة ميعلقش أكتر من 5 دقائق
+      - name: 🌐 تثبيت متصفح Playwright
+        run: npx playwright install chromium
+        timeout-minutes: 3
 
       - name: 🚀 تشغيل البوت وإنشاء الحساب
         run: node index.js ${{ github.event.inputs.count || '1' }}
