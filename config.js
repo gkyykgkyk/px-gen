@@ -14,7 +14,7 @@ module.exports = {
   PIXAI_ACCOUNTS_URL: "https://pixai.art/profile/edit/accounts",
   PIXAI_API_URL: "https://api.pixai.art",
   REFERRAL_URL:
-    process.env.REFERRAL_URL || "https://agent.pixai.art/?referral=17B1FT4C",
+    process.env.REFERRAL_URL || "BFANYHAM",
 
   // 🔐 باسورد افتراضي للحسابات الجديدة
   DEFAULT_PASSWORD:
