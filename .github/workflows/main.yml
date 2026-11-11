@@ -11,6 +11,7 @@ on:
 jobs:
   create-account:
     runs-on: ubuntu-latest
+    timeout-minutes: 20 # ⏱️ أقصى وقت للمهمة بالكامل هو 20 دقيقة لحماية رصيد الدقائق المجانية
 
     steps:
       - name: 📥 تحميل المشروع (Checkout Code)
@@ -19,17 +20,21 @@ jobs:
       - name: ⚙️ إعداد بيئة Node.js
         uses: actions/setup-node@v4
         with:
+        
           node-version: 20
           cache: "npm"
 
       - name: 📦 تثبيت الحزم (Install Dependencies)
         run: npm install
+        timeout-minutes: 3
 
       - name: 🌐 تثبيت متصفح Playwright مع مكتبات النظام
         run: npx playwright install --with-deps chromium
+        timeout-minutes: 5 # لو حصلت مشكلة في سيرفرات أوبنتو زي الصورة ميعلقش أكتر من 5 دقائق
 
       - name: 🚀 تشغيل البوت وإنشاء الحساب
         run: node index.js ${{ github.event.inputs.count || '1' }}
+        timeout-minutes: 10
         env:
           CI: true
           HEADLESS: true
