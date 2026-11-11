@@ -7,6 +7,10 @@ on:
         description: "عدد الحسابات المراد إنشاؤها في هذه الجلسة"
         required: false
         default: "1"
+      referral:
+        description: "كود أو رابط الإحالة"
+        required: false
+        default: "https://agent.pixai.art/?referral=BFANYHAM"
 
 jobs:
   create-account:
@@ -37,6 +41,7 @@ jobs:
         env:
           CI: true
           HEADLESS: true
+          REFERRAL_URL: ${{ github.event.inputs.referral || 'https://agent.pixai.art/?referral=BFANYHAM' }}
 
       - name: 💾 حفظ ملف الحسابات كـ Artifact
         uses: actions/upload-artifact@v4
