@@ -1,0 +1,44 @@
+name: Create PixAI Account
+
+on:
+  workflow_dispatch:
+    inputs:
+      count:
+        description: "عدد الحسابات المراد إنشاؤها في هذه الجلسة"
+        required: false
+        default: "1"
+
+jobs:
+  create-account:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: 📥 تحميل المشروع (Checkout Code)
+        uses: actions/checkout@v4
+
+      - name: ⚙️ إعداد بيئة Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+
+      - name: 📦 تثبيت الحزم (Install Dependencies)
+        run: npm install
+
+      - name: 🌐 تثبيت متصفح Playwright مع مكتبات النظام
+        run: npx playwright install --with-deps chromium
+
+      - name: 🚀 تشغيل البوت وإنشاء الحساب
+        run: node index.js ${{ github.event.inputs.count || '1' }}
+        env:
+          CI: true
+          HEADLESS: true
+
+      - name: 💾 حفظ ملف الحسابات كـ Artifact
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: pixai-accounts-${{ github.run_number }}
+          path: accounts.json
+          if-no-files-found: ignore
+
