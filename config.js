@@ -2,6 +2,9 @@
 // ⚙️ إعدادات الاسكريبت - عدّل هنا بس
 // ============================================
 
+// قراءة المتغيرات من ملف .env تلقائياً
+require("dotenv").config();
+
 module.exports = {
   // 🔑 API Key لخدمة الإيميلات المؤقتة (gffkl.com)
   GFFKL_API_KEY:
@@ -13,9 +16,13 @@ module.exports = {
   PIXAI_LOGIN_URL: "https://pixai.art/login",
   PIXAI_ACCOUNTS_URL: "https://pixai.art/profile/edit/accounts",
   PIXAI_API_URL: "https://api.pixai.art",
-  // رابط أو كود الإحالة (يقبل كود فقط مثل BFANYHAM أو رابط كامل)
+
+  // رابط أو كود الإحالة (يقرأ من .env باسم REFERRAL_URL أو URL، ويقبل رابط أو كود فقط)
   REFERRAL_URL: (() => {
-    const ref = process.env.REFERRAL_URL || "https://agent.pixai.art/?referral=BFANYHAM";
+    const ref =
+      process.env.REFERRAL_URL ||
+      process.env.URL ||
+      "https://agent.pixai.art/?referral=BFANYHAM";
     if (ref.startsWith("http://") || ref.startsWith("https://")) {
       return ref;
     }
