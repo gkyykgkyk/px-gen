@@ -2,8 +2,34 @@
 // ⚙️ إعدادات الاسكريبت - عدّل هنا بس
 // ============================================
 
-// قراءة المتغيرات من ملف .env تلقائياً
-require("dotenv").config();
+// قراءة المتغيرات من ملف .env تلقائياً بدون الحاجة لأي مكتبات خارجية
+const fs = require("fs");
+const path = require("path");
+
+try {
+  const envPath = path.join(__dirname, ".env");
+  if (fs.existsSync(envPath)) {
+    const lines = fs.readFileSync(envPath, "utf-8").split(/\r?\n/);
+    for (const line of lines) {
+      const trimmed = line.trim();
+      if (!trimmed || trimmed.startsWith("#")) continue;
+      const idx = trimmed.indexOf("=");
+      if (idx !== -1) {
+        const key = trimmed.slice(0, idx).trim();
+        let val = trimmed.slice(idx + 1).trim();
+        if (
+          (val.startsWith('"') && val.endsWith('"')) ||
+          (val.startsWith("'") && val.endsWith("'"))
+        ) {
+          val = val.slice(1, -1);
+        }
+        if (!process.env[key]) {
+          process.env[key] = val;
+        }
+      }
+    }
+  }
+} catch (e) {}
 
 module.exports = {
   // 🔑 API Key لخدمة الإيميلات المؤقتة (gffkl.com)
