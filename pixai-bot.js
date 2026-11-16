@@ -4,7 +4,7 @@
 
 const { chromium } = require("playwright");
 const config = require("./config");
-const emailService = require("./gffkl-email");
+const emailService = require("./temp-email");
 
 /**
  * إنشاء حساب PixAI كامل مع التحقق من الإيميل
@@ -60,35 +60,55 @@ async function createPixAIAccount() {
       await page.waitForTimeout(1000);
     }
 
-    // ========== الخطوة 5: ملء بيانات التسجيل ==========
-    console.log(`📝 كتابة الإيميل: ${email}`);
-    await emailInput.waitFor({ state: "visible", timeout: 10000 });
-    await emailInput.fill(email);
-
-    // ملء خانة الباسورد
-    console.log("🔐 كتابة الباسورد...");
+    // ========== الخطوة 5: ملء بيانات التسجيل مع التبديل التلقائي للدومين لو رُفض ==========
     const passwordInput = page
       .locator('input[type="password"], input[placeholder*="Password" i]')
       .first();
     await passwordInput.waitFor({ state: "visible", timeout: 10000 });
-    await passwordInput.fill(password);
 
-    // ========== الخطوة 6: الضغط على Continue ==========
-    console.log("▶️ الضغط على Continue...");
+    let signUpStatus = 0;
+    const maxDomainRetries = 5;
 
-    // نلتقط الريسبونس بتاع التسجيل (مهلة 30 ثانية لتوليد reCAPTCHA براحته)
-    const [signUpResponse] = await Promise.all([
-      page.waitForResponse(
-        (resp) =>
-          resp.url().includes("/v2/auth/sign-in/email") &&
-          resp.request().method() === "POST",
-        { timeout: 30000 }
-      ),
-      page.getByRole("button", { name: "Continue", exact: true }).click(),
-    ]);
+    for (let attempt = 1; attempt <= maxDomainRetries; attempt++) {
+      if (attempt > 1) {
+        console.log(`\n🔄 رفض الموقع الدومين! جاري تجربة دومين جديد (${attempt}/${maxDomainRetries})...`);
+        email = await emailService.createRandomEmail();
+      }
 
-    const signUpData = await signUpResponse.json();
-    console.log("✅ تم التسجيل! Status:", signUpResponse.status());
+      console.log(`📝 كتابة الإيميل: ${email}`);
+      await emailInput.fill("");
+      await emailInput.fill(email);
+
+      console.log("🔐 كتابة الباسورد...");
+      await passwordInput.fill("");
+      await passwordInput.fill(password);
+
+      console.log("▶️ الضغط على Continue...");
+
+      const [signUpResponse] = await Promise.all([
+        page.waitForResponse(
+          (resp) =>
+            resp.url().includes("/v2/auth/sign-in/email") &&
+            resp.request().method() === "POST",
+          { timeout: 30000 }
+        ),
+        page.getByRole("button", { name: "Continue", exact: true }).click(),
+      ]);
+
+      signUpStatus = signUpResponse.status();
+      if (signUpStatus === 200) {
+        console.log("✅ تم قبول الإيميل والتسجيل بنجاح! Status: 200");
+        break;
+      } else {
+        const errBody = await signUpResponse.text().catch(() => "");
+        console.warn(`⚠️ تم رفض هذا الدومين من PixAI (Status ${signUpStatus}): ${errBody}`);
+        await page.waitForTimeout(2000);
+      }
+    }
+
+    if (signUpStatus !== 200) {
+      throw new Error(`تعذر العثور على دومين مقبول بعد ${maxDomainRetries} محاولات مختلفة.`);
+    }
 
     // استنى شوية عشان الصفحة تتحمل
     await page.waitForTimeout(3000);
@@ -108,7 +128,7 @@ async function createPixAIAccount() {
       console.log("🎯 ممتاز! ظهرت شاشة إدخال الكود المباشرة (Verify and create account)");
       console.log("📬 في انتظار وصول رسالة التحقق للإيميل...");
       const msg = await emailService.waitForEmail(email);
-      const code = await emailService.getVerificationCode(email, msg.id);
+      const code = await emailService.getVerificationCode(email, msg);
 
       console.log(`🔢 كتابة كود التحقق (${code}) في الشاشة...`);
       const codeInput = page.locator('input').first();
@@ -139,7 +159,7 @@ async function createPixAIAccount() {
 
       console.log("\n📬 في انتظار رسالة التحقق...");
       const msg = await emailService.waitForEmail(email);
-      const code = await emailService.getVerificationCode(email, msg.id);
+      const code = await emailService.getVerificationCode(email, msg);
 
       const verifyUrl = `${config.PIXAI_URL}/verify-email?code=${code}&to=`;
       console.log(`🔗 جاري فتح رابط التحقق: ${verifyUrl}`);
@@ -176,15 +196,16 @@ async function createPixAIAccount() {
     // الضغط على زرار Skip في نافذة Welcome to Mio!
     console.log("🔘 البحث عن زرار Skip في نافذة الترحيب...");
     const skipBtn = page
-      .getByRole("button", { name: "Skip", exact: true })
-      .or(page.locator('button:has-text("Skip")'))
+      .locator('button:has-text("Skip"), [role="button"]:has-text("Skip"), text="Skip"')
       .first();
 
-    if (await skipBtn.isVisible({ timeout: 10000 }).catch(() => false)) {
-      await skipBtn.click();
-      console.log("✅ تم الضغط على Skip!");
-    } else {
-      console.log("ℹ️ نافذة الترحيب / زرار Skip لم يظهر.");
+    try {
+      await skipBtn.waitFor({ state: "visible", timeout: 15000 });
+      await page.waitForTimeout(1000);
+      await skipBtn.click({ force: true });
+      console.log("✅ تم الضغط على Skip بنجاح!");
+    } catch (e) {
+      console.log("ℹ️ نافذة الترحيب / زرار Skip لم يظهر أو تم تجاوزه.");
     }
 
     await page.waitForTimeout(2000);
@@ -193,11 +214,12 @@ async function createPixAIAccount() {
     console.log("💬 جاري إرسال رسالة 'hi' في الشات...");
     const chatInput = page
       .locator(
-        'textarea, [contenteditable="true"], [placeholder*="Write your idea"], input[placeholder*="Write your idea"]'
+        'textarea, [contenteditable="true"], [placeholder*="Write your idea" i], input[placeholder*="Write your idea" i]'
       )
       .first();
 
-    if (await chatInput.isVisible({ timeout: 10000 }).catch(() => false)) {
+    try {
+      await chatInput.waitFor({ state: "visible", timeout: 15000 });
       await chatInput.click();
       await chatInput.fill("hi");
       await page.waitForTimeout(500);
@@ -207,15 +229,15 @@ async function createPixAIAccount() {
 
       // أو كليك على زرار الإرسال الأزرق لو لسه موجود
       const sendBtn = page.locator('button:has(svg.lucide-send), button:has(svg)').last();
-      if (await sendBtn.isVisible({ timeout: 1000 }).catch(() => false)) {
+      if (await sendBtn.isVisible().catch(() => false)) {
         await sendBtn.click().catch(() => {});
       }
 
       console.log("🚀 تم إرسال رسالة 'hi' بنجاح!");
       console.log("⏳ في انتظار رد الموديل وتأكيد التفاعل (10 ثواني)...");
       await page.waitForTimeout(10000);
-    } else {
-      console.log("⚠️ لم يتم العثور على صندوق الشات لإرسال الرسالة.");
+    } catch (e) {
+      console.log("⚠️ لم يتم العثور على صندوق الشات لإرسال الرسالة:", e.message);
     }
 
     page.off("request", requestListener);

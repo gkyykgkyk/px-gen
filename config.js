@@ -32,10 +32,8 @@ try {
 } catch (e) {}
 
 module.exports = {
-  // 🔑 API Key لخدمة الإيميلات المؤقتة (gffkl.com)
-  GFFKL_API_KEY:
-    process.env.GFFKL_API_KEY || "v1_API_8f92a3c7b8d4e5f6g7h8j9k0l1m2n3o4p5q6",
-  GFFKL_BASE_URL: process.env.GFFKL_BASE_URL || "https://gffkl.com/api",
+  // 📧 خدمة الإيميلات المؤقتة (Mail.tm)
+  MAILTM_BASE_URL: "https://api.mail.tm",
 
   // 🌐 إعدادات PixAI
   PIXAI_URL: "https://pixai.art",
