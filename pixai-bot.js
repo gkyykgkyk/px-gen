@@ -193,19 +193,68 @@ async function createPixAIAccount() {
     await page.goto(config.REFERRAL_URL, { waitUntil: "domcontentloaded" });
     await page.waitForTimeout(3000);
 
-    // الضغط على زرار Skip في نافذة Welcome to Mio!
-    console.log("🔘 البحث عن زرار Skip في نافذة الترحيب...");
-    const skipBtn = page
-      .locator('button:has-text("Skip"), [role="button"]:has-text("Skip"), text="Skip"')
-      .first();
-
+    // ========== التعامل مع نافذة Welcome to Mio وإغلاقها ==========
+    console.log("🔘 فحص نافذة الترحيب Welcome to Mio...");
     try {
-      await skipBtn.waitFor({ state: "visible", timeout: 15000 });
-      await page.waitForTimeout(1000);
-      await skipBtn.click({ force: true });
-      console.log("✅ تم الضغط على Skip بنجاح!");
+      const dialogOverlay = page
+        .locator(
+          '[data-slot="dialog-portal"], [data-slot="dialog-overlay"], [role="dialog"], text="Welcome to Mio!"'
+        )
+        .first();
+
+      if (await dialogOverlay.isVisible({ timeout: 6000 }).catch(() => false)) {
+        console.log("🎯 نافذة Welcome to Mio ظاهرة! جاري الضغط على Skip...");
+
+        // محاولة 1: كليك بالـ Role أو داخل الـ Portal
+        const skipButton = page
+          .getByRole("button", { name: /skip/i })
+          .or(page.locator('[data-slot="dialog-portal"] button').filter({ hasText: /skip/i }))
+          .or(page.locator('button:has-text("Skip")'))
+          .or(page.getByText(/^Skip$/i))
+          .first();
+
+        let clicked = false;
+        if (await skipButton.isVisible({ timeout: 4000 }).catch(() => false)) {
+          await skipButton.click({ force: true }).catch(() => {});
+          console.log("✅ تم الضغط على زرار Skip!");
+          clicked = true;
+        }
+
+        // محاولة 2: إغلاق عبر Escape أو الضغط المباشر بالـ DOM
+        await page.waitForTimeout(1000);
+        const stillOpen = await dialogOverlay.isVisible().catch(() => false);
+        if (stillOpen) {
+          console.log("🔘 إغلاق النافذة عبر Escape / DOM...");
+          await page.keyboard.press("Escape").catch(() => {});
+          await page.waitForTimeout(500);
+
+          await page
+            .evaluate(() => {
+              const buttons = Array.from(
+                document.querySelectorAll('button, [role="button"]')
+              );
+              const skipEl = buttons.find(
+                (b) =>
+                  b.textContent &&
+                  b.textContent.trim().toLowerCase() === "skip"
+              );
+              if (skipEl) {
+                skipEl.click();
+              } else {
+                document
+                  .querySelectorAll(
+                    '[data-slot="dialog-portal"], [data-slot="dialog-overlay"]'
+                  )
+                  .forEach((el) => el.remove());
+              }
+            })
+            .catch(() => {});
+        }
+      } else {
+        console.log("ℹ️ نافذة الترحيب لم تظهر أو تم تخطيها تلقائياً.");
+      }
     } catch (e) {
-      console.log("ℹ️ نافذة الترحيب / زرار Skip لم يظهر أو تم تجاوزه.");
+      console.log("ℹ️ تم تجاوز خطوة نافذة الترحيب.");
     }
 
     await page.waitForTimeout(2000);
@@ -214,13 +263,12 @@ async function createPixAIAccount() {
     console.log("💬 جاري إرسال رسالة 'hi' في الشات...");
     const chatInput = page
       .locator(
-        'textarea, [contenteditable="true"], [placeholder*="Write your idea" i], input[placeholder*="Write your idea" i]'
+        'textarea[data-testid="chat-input-textarea"], textarea[name="message"], textarea, [contenteditable="true"]'
       )
       .first();
 
     try {
       await chatInput.waitFor({ state: "visible", timeout: 15000 });
-      await chatInput.click();
       await chatInput.fill("hi");
       await page.waitForTimeout(500);
 
@@ -228,9 +276,13 @@ async function createPixAIAccount() {
       await page.keyboard.press("Enter");
 
       // أو كليك على زرار الإرسال الأزرق لو لسه موجود
-      const sendBtn = page.locator('button:has(svg.lucide-send), button:has(svg)').last();
+      const sendBtn = page
+        .locator(
+          'button[data-testid="send-button"], button:has(svg.lucide-send), button:has(svg)'
+        )
+        .last();
       if (await sendBtn.isVisible().catch(() => false)) {
-        await sendBtn.click().catch(() => {});
+        await sendBtn.click({ force: true }).catch(() => {});
       }
 
       console.log("🚀 تم إرسال رسالة 'hi' بنجاح!");
